@@ -199,7 +199,7 @@ assign LED_USER  = ioctl_download;
 `define RDY_WAIT  4'b0001
 `define RAM_END   4'b1111
 
-//`define FAST_CLOCK
+`define FAST_CLOCK
 
 wire clk_106m, clk_26m, clk_53m;
 
@@ -323,18 +323,18 @@ wire [7:0] loader_be = (loader_en && loader_addr[2:0]==0) ? 8'b11000000 :
 							  (loader_en && loader_addr[2:0]==6) ? 8'b00000011 :
 																				8'b11111111;
 
-reg [1:0] status_reg = 0;
+//reg [1:0] status_reg = 0;
 reg       old_download;
-integer   timeout = 0;
+//integer   timeout = 0;
 
 wire rom_index = ioctl_index[5:0] == 1;
 
 always @(posedge clk_sys)
 if (reset) begin
 	ioctl_wait <= 0;
-	status_reg <= 0;
+//	status_reg <= 0;
 	old_download <= 0;
-	timeout <= 0;
+//	timeout <= 0;
 	loader_wr <= 0;
 	loader_en <= 0;
 	loader_addr <= 32'h0080_0000;
@@ -348,9 +348,9 @@ else begin
 		loader_addr <= 32'h0080_0000;   // Force the cart ROM to load at 0x00800000 in DDR for Jag core. (byte address!)
 		                                // (The ROM actually gets written at 0x30800000 in DDR, which is done when load_addr gets assigned to DDRAM_ADDR below).
 		loader_en <= 1;
-		status_reg <= 0;
+//		status_reg <= 0;
 		ioctl_wait <= 0;
-		timeout <= 3000000;
+//		timeout <= 3000000;
 	end
 
 	if (loader_wr) loader_addr <= loader_addr + 2'd2; // Writing a 16-bit WORD at a time!
@@ -634,7 +634,7 @@ reg [3:0] ram_count;
 
 wire [3:0] dram_oe = (~dram_cas_n) ? ~dram_oe_n[3:0] : 4'b0000;
 wire fdram;
-wire ram_rdy = ~ch1_req && ((mem_cyc == `RAM_IDLE) || ch1_ready);	// Latency kludge.
+wire ram_rdy = ~ch1_req;// && ((mem_cyc == `RAM_IDLE) || ch1_ready);	// Latency kludge.
 
 // From the core into SDRAM.
 wire ram_read_req = (dram_oe_n != 4'b1111); // The use of "startcas" lets us get a bit lower latency for READ requests. (dram_oe_n bits only asserted for reads? - confirm!")
@@ -642,7 +642,11 @@ wire ram_write_req = ({dram_uw_n, dram_lw_n} != 8'b11111111);	// Can (currently)
 
 wire ch1_rnw = !ram_write_req;
 
-wire ch1_req = (mem_cyc==`RAM_IDLE) && (ram_read_req || ram_write_req) && dram_cas_edge;// Latency kludge. (the check for `RAM_IDLE ensures ch1_req only pulses for ONE clock cycle.)
+wire ch1_req = dram_cas_edge && ~dram_ras_n;// Latency kludge. (the check for `RAM_IDLE ensures ch1_req only pulses for ONE clock cycle.)
+//wire ch1_req = dram_read_edge || dram_write_edge || (ram_read_req && dram_cas_nedge);// Latency kludge. (the check for `RAM_IDLE ensures ch1_req only pulses for ONE clock cycle.)
+wire ch1_ref = dram_cas_edge && dram_ras_n;// Latency kludge. (the check for `RAM_IDLE ensures ch1_req only pulses for ONE clock cycle.)
+wire ch1_act = dram_ras_edge && dram_cas_n;// Latency kludge. (the check for `RAM_IDLE ensures ch1_req only pulses for ONE clock cycle.)
+wire ch1_pch = dram_ras_nedge && dram_cas_n;// Latency kludge. (the check for `RAM_IDLE ensures ch1_req only pulses for ONE clock cycle.)
 
 wire [63:0] ch1_din = dram_d;	// Write data, from core to SDRAM.
 
@@ -656,8 +660,15 @@ wire [7:0] ch1_be = ~{
 wire [63:0] ch1_dout;	// Read data, TO the core.
 reg [9:0] ras_latch;
 reg old_cas_n;
+reg old_ram_read_req;
+reg old_ram_write_req;
 
 wire dram_cas_edge = old_cas_n && ~dram_cas_n;
+wire dram_ras_edge = old_ras_n && ~dram_ras_n;
+wire dram_ras_nedge = ~old_ras_n && dram_ras_n;
+wire dram_cas_nedge = ~old_cas_n && dram_cas_n;
+wire dram_read_edge = ram_read_req && ~old_ram_read_req;
+wire dram_write_edge = ram_write_req && ~old_ram_write_req;
 
 wire [19:0] dram_addr = {ras_latch, dram_a};//abus_out[22:3];//{ras_latch, dram_a};
 wire ch1a_ready, ch1b_ready;
@@ -684,9 +695,13 @@ sdram sdram
 
 	// Port 2
 	.ch1_addr           ({5'b00000, dram_addr, 2'b00}),
+	.ch1_caddr          ({3'b000, dram_a}),
 	.ch1_dout           ({ch1_dout[47:32], ch1_dout[15:0]}),
 	.ch1_din            ({ch1_din[47:32], ch1_din[15:0]}),
 	.ch1_req            (ch1_req),
+	.ch1_ref            (ch1_ref),
+	.ch1_act            (ch1_act),
+	.ch1_pch            (ch1_pch),
 	.ch1_rnw            (ch1_rnw),
 	.ch1_be             ({ch1_be[5:4], ch1_be[1:0]}),
 	.ch1_ready          (ch1a_ready)
@@ -711,15 +726,20 @@ sdram sdram2
 
 	// Port 2
 	.ch1_addr           ({5'b00000, dram_addr, 2'b00}),
+	.ch1_caddr          ({3'b000, dram_a}),
 	.ch1_dout           ({ch1_dout[63:48], ch1_dout[31:16]}),
 	.ch1_din            ({ch1_din[63:48], ch1_din[31:16]}),
 	.ch1_req            (ch1_req),
+	.ch1_ref            (ch1_ref),
+	.ch1_act            (ch1_act),
+	.ch1_pch            (ch1_pch),
 	.ch1_rnw            (ch1_rnw),
 	.ch1_be             ({ch1_be[7:6], ch1_be[3:2]}),
 	.ch1_ready          (ch1b_ready)
 );
 
 reg [3:0] mem_cyc;
+reg old_ras_n;
 
 always @(posedge clk_ram)
 if (reset) begin
@@ -729,9 +749,10 @@ if (reset) begin
 	old_cas_n <= 1;
 end
 else begin
-	reg old_ras_n;
 	old_cas_n <= dram_cas_n;
 	old_ras_n <= dram_ras_n;
+	old_ram_read_req <= ram_read_req;
+	old_ram_write_req <= ram_write_req;
 	if (old_ras_n && ~dram_ras_n)
 		ras_latch <= dram_a;
 
