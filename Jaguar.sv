@@ -893,7 +893,7 @@ jaguar jaguar_inst
 	.aud_ce(aud_ce),
 	.aud_busy(audbus_busy),
 	// aud_sess: menu-driven audio-session override into Butch.
-  .aud_sess(~status[55]),
+	.aud_sess(~status[55]),
 	.cdg_in( cdg_in ) ,
 	.force_music_cd(status[55]),
 	.dohacks(patch_checksums),
