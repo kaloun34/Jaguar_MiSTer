@@ -91,6 +91,9 @@ module _tom
 	output [10:3] atp,
 	input turbo,
 	input vintbugfix,
+	input olpbugfix,
+	input ntsc,
+	input crop_video,
 	output wire hsl,
 	output wire vsl
 );
@@ -1197,6 +1200,8 @@ _ob ob_inst
 	.justify_oe /* BUS */ (justify_ob_oe),
 	.dr_out /* BUS */ (dr_ob_out[15:0]),
 	.dr_oe /* BUS */ (dr_ob_oe),
+// NOT_NETLIST
+	.olpbugfix(olpbugfix),
 	.sys_clk(sys_clk) // Generated
 );
 
