@@ -448,7 +448,8 @@ begin
 	if (olp2w) begin
 		olpd[23:16] <= din[7:0]; // ldp1q negedge always @(d or g)
 	end
-	if ((olp1w) && (~olp2w) && q0 && olpbugfix) begin
+	// If the m68k splits the write it can crash the ob if a start happens in between. Force the second write ahead to make it consistent. Assumes second write will happen before leaving q1.
+	if ((olp1w) && (~olp2w) && q0 && olpbugfix) begin 
 		olphack1 <= 1'b1;
 	end
 	if ((~q0 && ~q1) || olp2w || ~resetl) begin

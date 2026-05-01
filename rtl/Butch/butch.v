@@ -603,8 +603,8 @@ reg [7:0] mode;
 wire speed1x = mode[0];
 wire speed2x = mode[1];
 wire cdrommd = mode[3];//audiomd==0
-wire attiabs = mode[4];
-wire attirel = mode[5];
+wire attiabs = 0;//mode[4];
+wire attirel = 0;//mode[5];
 wire pausetr = mode[6];
 // 5 - 4 = Actual Title, Time, Index (ATTI) setting
 // 00 = no title, index or time send during play modes
@@ -612,20 +612,6 @@ wire pausetr = mode[6];
 // 10 = sending title, index and relative time (min/sec)
 // 11 = reserved
 
-reg atti_report_valid;
-reg [7:0] atti_last_title;
-reg [7:0] atti_last_index;
-reg [6:0] atti_last_rel_minutes;
-reg [5:0] atti_last_rel_seconds;
-reg [6:0] atti_last_abs_minutes;
-reg [5:0] atti_last_abs_seconds;
-reg atti_evt_title_pending;
-reg atti_evt_index_pending;
-reg atti_evt_rel_minutes_pending;
-reg atti_evt_rel_seconds_pending;
-reg atti_evt_abs_minutes_pending;
-reg atti_evt_abs_seconds_pending;
-reg atti_force_full_update;
 reg play_title_pending_rsp;
 reg [6:0] play_title_pending_track;
 reg title_len_pending_rsp;
@@ -638,6 +624,7 @@ reg goto_found_pending_rsp;
 reg scan_goto_pending;
 reg leadout_title_pending;
 reg leadout_seen;
+reg mode_pending_rsp;
 
 reg updabs;
 reg updabs_req;
@@ -737,16 +724,9 @@ begin
 	recrc <= 1'b1;
 	data_wait_pending <= 1'b0;
 	data_wait_cycles <= 16'h0000;
-	atti_report_valid <= 1'b0;
-	atti_force_full_update <= 1'b0;
-	atti_evt_title_pending <= 1'b0;
-	atti_evt_index_pending <= 1'b0;
-	atti_evt_rel_minutes_pending <= 1'b0;
-	atti_evt_rel_seconds_pending <= 1'b0;
-	atti_evt_abs_minutes_pending <= 1'b0;
-	atti_evt_abs_seconds_pending <= 1'b0;
 	leadout_title_pending <= 1'b0;
 	leadout_seen <= 1'b0;
+	mode_pending_rsp <= 1'b0;
 end
 endtask
 
@@ -762,13 +742,8 @@ begin
 	recrc <= 1'b1;
 	data_wait_pending <= 1'b0;
 	data_wait_cycles <= 16'h0000;
-	atti_evt_title_pending <= 1'b0;
-	atti_evt_index_pending <= 1'b0;
-	atti_evt_rel_minutes_pending <= 1'b0;
-	atti_evt_rel_seconds_pending <= 1'b0;
-	atti_evt_abs_minutes_pending <= 1'b0;
-	atti_evt_abs_seconds_pending <= 1'b0;
 	leadout_title_pending <= 1'b0;
+	mode_pending_rsp <= 1'b0;
 end
 endtask
 
@@ -921,7 +896,7 @@ localparam [31:0] DSA_DELAY_SEEK_TIER1 = 32'd3190800;   // ~30 ms
 localparam [31:0] DSA_DELAY_SEEK_TIER2 = 32'd9572400;   // ~90 ms
 localparam [31:0] DSA_DELAY_SEEK_TIER3 = 32'd15954000;  // ~150 ms
 localparam [31:0] DSA_DELAY_SEEK_TIER4 = 32'd23931000;  // ~225 ms
-localparam [31:0] DSA_DELAY_SEEK_TIER5 = 32'h0200_0000; // ~315 ms
+localparam [31:0] DSA_DELAY_SEEK_TIER5 = 32'h0180_0000; // ~315 ms
 
 function [31:0] goto_seek_delay_cycles;
 	input [20:0] delta_frames;
@@ -957,12 +932,7 @@ endfunction
 
 assign cur_subq_tno = subq_leadout ? 8'hAA : ((subq_program || subq_pregap) ? bcd[atrack_safe] : 8'h00);
 assign cur_subq_index = subq_program ? 8'h01 : 8'h00;
-wire [7:0] atti_cur_index = cur_subq_index;
-wire [7:0] atti_cur_title = subq_leadout ? 8'hAA : {1'b0,track_idx};
-wire atti_runtime_active = play && !stop && !spinpause && !pause && (seek == 8'h0) && (splay == 5'h0);
-wire atti_evt_drain_active = atti_runtime_active || atti_force_full_update;
-wire atti_setmode_context_valid = play && !stop && !spinpause && (seek == 8'h0) && (splay == 5'h0);
-wire interactive_scan_context = pause_mode_indicator || (play && !pause && !spinpause && (attirel || attiabs));
+wire interactive_scan_context = pause_mode_indicator;
 initial begin
 	cue_tracks <= 7'd6; //
 	aud_tracks <= 7'd2;
@@ -986,26 +956,13 @@ initial begin
 	stop_flush_ws <= 3'h0;
 	updabs_req <= 1'b0;
 	pause_mode_indicator <= 1'b0;
-	atti_report_valid <= 1'b0;
-	atti_last_title <= 8'h0;
-	atti_last_index <= 8'h0;
-	atti_last_rel_minutes <= 7'h0;
-	atti_last_rel_seconds <= 6'h0;
-	atti_last_abs_minutes <= 7'h0;
-	atti_last_abs_seconds <= 6'h0;
-	atti_evt_title_pending <= 1'b0;
-	atti_evt_index_pending <= 1'b0;
-	atti_evt_rel_minutes_pending <= 1'b0;
-	atti_evt_rel_seconds_pending <= 1'b0;
-	atti_evt_abs_minutes_pending <= 1'b0;
-	atti_evt_abs_seconds_pending <= 1'b0;
-	atti_force_full_update <= 1'b0;
 	play_title_pending_rsp <= 1'b0;
 	play_title_pending_track <= 7'h0;
 	goto_found_pending_rsp <= 1'b0;
 	scan_goto_pending <= 1'b0;
 	leadout_title_pending <= 1'b0;
 	leadout_seen <= 1'b0;
+	mode_pending_rsp <= 1'b0;
 	for (dsa_sess_i = 0; dsa_sess_i < DSA_MAX_SESSIONS; dsa_sess_i = dsa_sess_i + 1) begin
 		dsa_sess_first_track[dsa_sess_i] <= 7'h0;
 		dsa_sess_last_track[dsa_sess_i] <= 7'h0;
@@ -1178,7 +1135,7 @@ begin
 		upd_seconds <= 1'b0;
 		upd_minutes <= 1'b0;
 		updabs_req <= 1'b0;
-		mode <= 8'h21;
+		mode <= 8'h01;
 		sdin[15:0] <= 0;
 		sdin3[15:0] <= 0;
 		sdin4[15:0] <= 0;
@@ -1202,20 +1159,6 @@ begin
 		fifo_inc <= 1'b0;
 		i2s_fifo[0] <= 0;
 		clear_audio_transport();
-		atti_report_valid <= 1'b0;
-		atti_last_title <= 8'h0;
-		atti_last_index <= 8'h0;
-		atti_last_rel_minutes <= 7'h0;
-		atti_last_rel_seconds <= 6'h0;
-		atti_last_abs_minutes <= 7'h0;
-		atti_last_abs_seconds <= 6'h0;
-		atti_evt_title_pending <= 1'b0;
-		atti_evt_index_pending <= 1'b0;
-		atti_evt_rel_minutes_pending <= 1'b0;
-		atti_evt_rel_seconds_pending <= 1'b0;
-		atti_evt_abs_minutes_pending <= 1'b0;
-		atti_evt_abs_seconds_pending <= 1'b0;
-		atti_force_full_update <= 1'b0;
 		play_title_pending_rsp <= 1'b0;
 		title_len_pending_rsp <= 1'b0;
 		ab_found_pending_rsp <= 1'b0;
@@ -1228,6 +1171,7 @@ begin
 		scan_goto_pending <= 1'b0;
 		leadout_title_pending <= 1'b0;
 		leadout_seen <= 1'b0;
+		mode_pending_rsp <= 1'b0;
 	end
 	if (!cdbios)
 		pastcdbios <= 1'b1;
@@ -1304,18 +1248,11 @@ begin
 			spin_up_pending_session <= 8'h0;
 			goto_found_pending_rsp <= 1'b0;
 			scan_goto_pending <= 1'b0;
-			atti_report_valid <= 1'b0;
-			atti_force_full_update <= 1'b0;
-			atti_evt_title_pending <= 1'b0;
-			atti_evt_index_pending <= 1'b0;
-			atti_evt_rel_minutes_pending <= 1'b0;
-			atti_evt_rel_seconds_pending <= 1'b0;
-			atti_evt_abs_minutes_pending <= 1'b0;
-			atti_evt_abs_seconds_pending <= 1'b0;
 			leadout_title_pending <= 1'b0;
 			leadout_seen <= 1'b0;
 			subcode_irq_pending <= 1'b0;
 			frame_irq_pending <= 1'b0;
+			mode_pending_rsp <= 1'b0;
 			sub_chunk_count <= 8'h0F;
 			subidx <= 4'h0;
 			cues_addr <= 7'h1;
@@ -1416,30 +1353,8 @@ begin
 	if (play_title_pending_rsp && !updabs_req && !updabs && (ds_resp_size == 3'h0) && !ds_a && !found_wait && !found_wait2 && (sub_chunk_count != 8'h0F)) begin
 		butch_reg[0][12] <= 1'b1;
 		butch_reg[0][13] <= 1'b1;
-		if (attiabs || attirel) begin
-			ds_resp[0] <= 32'h1000 | play_title_pending_track;
-			ds_resp[1] <= 32'h1100 | 8'h01;
-			ds_resp[4] <= 32'h0100;
-			ds_resp_size <= 3'h5;
-			atti_report_valid <= 1'b1;
-			atti_last_title <= {1'b0, play_title_pending_track};
-			atti_last_index <= 8'h01;
-			atti_last_abs_minutes <= cues_dout[22:16];
-			atti_last_abs_seconds <= cues_dout[13:8];
-			atti_last_rel_minutes <= cur_rminutes[6:0];
-			atti_last_rel_seconds <= cur_rseconds[5:0];
-			if (attiabs) begin
-				ds_resp[2] <= 32'h1400 | cues_dout[22:16];
-				ds_resp[3] <= 32'h1500 | cues_dout[13:8];
-			end else begin
-				ds_resp[2] <= 32'h1200 | cur_rminutes[6:0];
-				ds_resp[3] <= 32'h1300 | cur_rseconds[5:0];
-			end
-		end else begin
 			ds_resp[0] <= 32'h0100;
 			ds_resp_size <= 3'h1;
-			atti_report_valid <= 1'b0;
-		end
 		ds_resp_idx <= 3'h0;
 		ds_resp_loop <= 7'h0;
 		play_title_pending_rsp <= 1'b0;
@@ -1475,6 +1390,7 @@ begin
 			goto_found_pending_rsp <= 1'b0;
 			ab_found_pending_rsp <= 1'b0;
 			scan_goto_pending <= 1'b0;
+			mode_pending_rsp <= 1'b0;
 			abplay <= 1'b0;
 			abseek <= 8'h0;
 			subcode_irq_pending <= 1'b0;
@@ -1482,14 +1398,6 @@ begin
 			sub_chunk_count <= 8'h0F;
 			subidx <= 4'h0;
 			recrc <= 1'b1;
-			atti_report_valid <= 1'b0;
-			atti_force_full_update <= 1'b0;
-			atti_evt_title_pending <= 1'b0;
-			atti_evt_index_pending <= 1'b0;
-			atti_evt_rel_minutes_pending <= 1'b0;
-			atti_evt_rel_seconds_pending <= 1'b0;
-			atti_evt_abs_minutes_pending <= 1'b0;
-			atti_evt_abs_seconds_pending <= 1'b0;
 			leadout_title_pending <= 1'b0;
 			leadout_seen <= 1'b0;
 			clear_audio_transport();
@@ -1560,30 +1468,8 @@ begin
 	if (goto_found_pending_rsp && (ds_resp_size <= 3'h1) && !ds_a && !butch_reg[0][13]) begin
 		butch_reg[0][12] <= 1'b1;
 		butch_reg[0][13] <= 1'b1;
-		if (attiabs || attirel) begin
-			ds_resp[0] <= 32'h1000 | atti_cur_title;
-			ds_resp[1] <= 32'h1100 | atti_cur_index;
-			ds_resp[4] <= 32'h0100;
-			ds_resp_size <= 3'h5;
-			atti_report_valid <= 1'b1;
-			atti_last_title <= atti_cur_title;
-			atti_last_index <= atti_cur_index;
-			atti_last_abs_minutes <= cur_aminutes[6:0];
-			atti_last_abs_seconds <= cur_aseconds[5:0];
-			atti_last_rel_minutes <= cur_rminutes[6:0];
-			atti_last_rel_seconds <= cur_rseconds[5:0];
-			if (attiabs) begin
-				ds_resp[2] <= 32'h1400 | cur_aminutes[6:0];
-				ds_resp[3] <= 32'h1500 | cur_aseconds[5:0];
-			end else begin
-				ds_resp[2] <= 32'h1200 | cur_rminutes[6:0];
-				ds_resp[3] <= 32'h1300 | cur_rseconds[5:0];
-			end
-		end else begin
 			ds_resp[0] <= 32'h0100;
 			ds_resp_size <= 3'h1;
-			atti_report_valid <= 1'b0;
-		end
 		ds_resp_idx <= 3'h0;
 		ds_resp_loop <= 7'h0;
 		goto_found_pending_rsp <= 1'b0;
@@ -1723,45 +1609,16 @@ begin
 					if (seek_found_pending) begin
 						seek_found_pending <= 1'b0;
 						scan_goto_pending <= 1'b0;
-						atti_evt_title_pending <= 1'b0;
-						atti_evt_index_pending <= 1'b0;
-						atti_evt_rel_minutes_pending <= 1'b0;
-						atti_evt_rel_seconds_pending <= 1'b0;
-						atti_evt_abs_minutes_pending <= 1'b0;
-						atti_evt_abs_seconds_pending <= 1'b0;
 						if (ab_found_pending_rsp) begin
 							ds_resp[0] <= 32'h0100 | 32'h0044;
 							ds_resp_size <= 3'h1;
-							atti_report_valid <= 1'b0;
 							ds_resp_idx <= 3'h0;
 							ds_resp_loop <= 7'h0;
 							butch_reg[0][13] <= 1'b1; // |= 0x2000
 							ab_found_pending_rsp <= 1'b0;
 						end else if (cdrommd || pause_mode_indicator || scan_goto_pending) begin
-							if (attiabs || attirel) begin
-								ds_resp[0] <= 32'h1000 | atti_cur_title;
-								ds_resp[1] <= 32'h1100 | atti_cur_index;
-								ds_resp[4] <= 32'h0100;
-								ds_resp_size <= 3'h5;
-								atti_report_valid <= 1'b1;
-								atti_last_title <= atti_cur_title;
-								atti_last_index <= atti_cur_index;
-								atti_last_abs_minutes <= cur_aminutes[6:0];
-								atti_last_abs_seconds <= cur_aseconds[5:0];
-								atti_last_rel_minutes <= cur_rminutes[6:0];
-								atti_last_rel_seconds <= cur_rseconds[5:0];
-								if (attiabs) begin
-									ds_resp[2] <= 32'h1400 | cur_aminutes[6:0];
-									ds_resp[3] <= 32'h1500 | cur_aseconds[5:0];
-								end else begin
-									ds_resp[2] <= 32'h1200 | cur_rminutes[6:0];
-									ds_resp[3] <= 32'h1300 | cur_rseconds[5:0];
-								end
-							end else begin
 								ds_resp[0] <= 32'h0100;
 								ds_resp_size <= 3'h1;
-								atti_report_valid <= 1'b0;
-							end
 							ds_resp_idx <= 3'h0;
 							ds_resp_loop <= 7'h0;
 							butch_reg[0][13] <= 1'b1; // |= 0x2000
@@ -2070,6 +1927,7 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 			title_len_pending_rsp <= 1'b0;
 			toc_read_pending_rsp <= 1'b0;
 			spin_up_pending_rsp <= 1'b0;
+			mode_pending_rsp <= 1'b0;
 			if (din[15:8]==8'h01) begin  // Play Title
 				unhandled <= 1'b0;
 				abplay <= 1'b0;
@@ -2086,14 +1944,6 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 					play_title_pending_track <= (din[6:0] == 7'h00) ? 7'h01 : din[6:0];
 					goto_found_pending_rsp <= 1'b0;
 					scan_goto_pending <= 1'b0;
-					atti_report_valid <= 1'b0;
-					atti_force_full_update <= 1'b0;
-					atti_evt_title_pending <= 1'b0;
-					atti_evt_index_pending <= 1'b0;
-					atti_evt_rel_minutes_pending <= 1'b0;
-					atti_evt_rel_seconds_pending <= 1'b0;
-					atti_evt_abs_minutes_pending <= 1'b0;
-					atti_evt_abs_seconds_pending <= 1'b0;
 					leadout_title_pending <= 1'b0;
 					leadout_seen <= 1'b0;
 					subcode_irq_pending <= 1'b0;
@@ -2205,14 +2055,6 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 					sub_chunk_count <= 8'h0F;
 					subidx <= 4'h0;
 					recrc <= 1'b1;
-					atti_report_valid <= 1'b0;
-					atti_force_full_update <= 1'b0;
-					atti_evt_title_pending <= 1'b0;
-					atti_evt_index_pending <= 1'b0;
-					atti_evt_rel_minutes_pending <= 1'b0;
-					atti_evt_rel_seconds_pending <= 1'b0;
-					atti_evt_abs_minutes_pending <= 1'b0;
-					atti_evt_abs_seconds_pending <= 1'b0;
 					leadout_title_pending <= 1'b0;
 					leadout_seen <= 1'b0;
 					clear_audio_transport();
@@ -2373,6 +2215,7 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 //					butch_reg[0][13] <= 1'b1; // |= 0x2000 // too fast - wait for seek time
 //					ds_resp[0] <= 32'h0140; // dsa says 0x140; code is looking for 0x100
 //					ds_resp[0] <= 32'h0100; // too fast - wait for seek time
+					ds_resp[0][10] <= 1'b0; // no errors
 					butch_reg[0][13] <= 1'b0;
 					ds_resp_size <= 3'h1;
 					seek_found_pending <= 1'b1;
@@ -2422,39 +2265,13 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 				unhandled <= 1'b0;
 				butch_reg[0][12] <= 1'b1; // |= 0x1000
 //				butch_reg[0][13] <= 1'b1; // |= 0x2000
+				mode_pending_rsp <= 1'b1;
 				updpaus <= 13'h1FFF;
-				ds_resp[0] <= 32'h1700 | din[7:0];
+//				ds_resp[0] <= 32'h1700 | din[7:0];
 				ds_resp_idx <= 3'h0;
 				ds_resp_size <= 3'h1;
 				ds_resp_loop <= 7'h0;
 				mode <= din[7:0];
-				if ((((mode[5:4] == 2'b01) && (din[5:4] == 2'b10)) ||
-				     ((mode[5:4] == 2'b10) && (din[5:4] == 2'b01))) &&
-				    atti_setmode_context_valid) begin
-					atti_report_valid <= 1'b1;
-					atti_force_full_update <= 1'b1;
-					atti_last_title <= atti_cur_title;
-					atti_last_index <= atti_cur_index;
-					atti_last_rel_minutes <= cur_rminutes[6:0];
-					atti_last_rel_seconds <= cur_rseconds[5:0];
-					atti_last_abs_minutes <= cur_aminutes[6:0];
-					atti_last_abs_seconds <= cur_aseconds[5:0];
-					atti_evt_title_pending <= 1'b1;
-					atti_evt_index_pending <= 1'b1;
-					atti_evt_rel_minutes_pending <= (din[5:4] == 2'b10);
-					atti_evt_rel_seconds_pending <= (din[5:4] == 2'b10);
-					atti_evt_abs_minutes_pending <= (din[5:4] == 2'b01);
-					atti_evt_abs_seconds_pending <= (din[5:4] == 2'b01);
-				end else begin
-					atti_report_valid <= 1'b0;
-					atti_force_full_update <= 1'b0;
-					atti_evt_title_pending <= 1'b0;
-					atti_evt_index_pending <= 1'b0;
-					atti_evt_rel_minutes_pending <= 1'b0;
-					atti_evt_rel_seconds_pending <= 1'b0;
-					atti_evt_abs_minutes_pending <= 1'b0;
-					atti_evt_abs_seconds_pending <= 1'b0;
-				end
 				if (din[1]) begin // bit1=speed2x
 					sdin3[15:0] <= 16'h3; // 2*(3+1)=8 min for 9.279 (- currently setting 3 will alternate 3 and 4)
 				end else begin // bit0=speed1x
@@ -2773,8 +2590,12 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 		updpaus <= updpaus - 13'h1;
 	end
 	if (updpaus == 13'h01) begin
-		if ((ds_resp[0] <= 32'h0141) || (ds_resp[0] <= 32'h0142) || (ds_resp[0][15:8] <= 8'h17))
+		if ((ds_resp[0] == 32'h0141) || (ds_resp[0] == 32'h0142) || (mode_pending_rsp)) begin
 			butch_reg[0][13] <= 1'b1; // |= 0x2000
+			if (mode_pending_rsp)
+				ds_resp[0] <= 32'h1700 | mode[7:0];
+				mode_pending_rsp <= 1'b0;
+		end
 	end
 	if (old_doe_ds && !doe_ds && !updresp && (updrespa == 9'h00)) begin
 		ds_resp_idx <= ds_resp_idx + 3'h1;
@@ -2812,73 +2633,6 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 		ds_resp[5][15:8] <= 8'h65;
 		ds_resp[5][7:0] <= dsa_long_toc_session;
 	end
-	if (atti_force_full_update &&
-		!atti_evt_title_pending &&
-		!atti_evt_index_pending &&
-		!atti_evt_rel_minutes_pending &&
-		!atti_evt_rel_seconds_pending &&
-		!atti_evt_abs_minutes_pending &&
-		!atti_evt_abs_seconds_pending) begin
-		atti_force_full_update <= 1'b0;
-	end
-	if (!(attirel || attiabs)) begin
-		atti_report_valid <= 1'b0;
-		atti_force_full_update <= 1'b0;
-		atti_evt_title_pending <= 1'b0;
-		atti_evt_index_pending <= 1'b0;
-		atti_evt_rel_minutes_pending <= 1'b0;
-		atti_evt_rel_seconds_pending <= 1'b0;
-		atti_evt_abs_minutes_pending <= 1'b0;
-		atti_evt_abs_seconds_pending <= 1'b0;
-	end else if (atti_runtime_active) begin
-		if (!atti_report_valid) begin
-			atti_report_valid <= 1'b1;
-			atti_last_title <= atti_cur_title;
-			atti_last_index <= atti_cur_index;
-			atti_last_rel_minutes <= cur_rminutes[6:0];
-			atti_last_rel_seconds <= cur_rseconds[5:0];
-			atti_last_abs_minutes <= cur_aminutes[6:0];
-			atti_last_abs_seconds <= cur_aseconds[5:0];
-			// Emit an initial ATTI snapshot on first stable playback entry so
-			// VLM/UI consumers do not miss the current time if the earlier
-			// play-title response path was bypassed or already consumed.
-			atti_evt_title_pending <= 1'b1;
-			atti_evt_index_pending <= 1'b1;
-			atti_evt_rel_minutes_pending <= attirel;
-			atti_evt_rel_seconds_pending <= attirel;
-			atti_evt_abs_minutes_pending <= attiabs;
-			atti_evt_abs_seconds_pending <= attiabs;
-		end else begin
-			if (atti_cur_title != atti_last_title) begin
-				atti_evt_title_pending <= 1'b1;
-				atti_last_title <= atti_cur_title;
-			end
-			if (atti_cur_index != atti_last_index) begin
-				atti_evt_index_pending <= 1'b1;
-				atti_last_index <= atti_cur_index;
-			end
-			if (attirel) begin
-				if (cur_rminutes[6:0] != atti_last_rel_minutes) begin
-					atti_evt_rel_minutes_pending <= 1'b1;
-					atti_last_rel_minutes <= cur_rminutes[6:0];
-				end
-				if (cur_rseconds[5:0] != atti_last_rel_seconds) begin
-					atti_evt_rel_seconds_pending <= 1'b1;
-					atti_last_rel_seconds <= cur_rseconds[5:0];
-				end
-			end
-			if (attiabs) begin
-				if (cur_aminutes[6:0] != atti_last_abs_minutes) begin
-					atti_evt_abs_minutes_pending <= 1'b1;
-					atti_last_abs_minutes <= cur_aminutes[6:0];
-				end
-				if (cur_aseconds[5:0] != atti_last_abs_seconds) begin
-					atti_evt_abs_seconds_pending <= 1'b1;
-					atti_last_abs_seconds <= cur_aseconds[5:0];
-				end
-			end
-		end
-	end
 	if ((!play || !subq_leadout || cdrommd) && !leadout_title_pending) begin
 		leadout_seen <= 1'b0;
 	end
@@ -2886,21 +2640,6 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 		leadout_seen <= 1'b1;
 		pause <= 1'b1;
 		leadout_title_pending <= 1'b1;
-		atti_report_valid <= 1'b0;
-		atti_evt_title_pending <= 1'b0;
-		atti_evt_index_pending <= 1'b0;
-		atti_evt_rel_minutes_pending <= 1'b0;
-		atti_evt_rel_seconds_pending <= 1'b0;
-		atti_evt_abs_minutes_pending <= 1'b0;
-		atti_evt_abs_seconds_pending <= 1'b0;
-	end
-	if (!atti_evt_drain_active) begin
-		atti_evt_title_pending <= 1'b0;
-		atti_evt_index_pending <= 1'b0;
-		atti_evt_rel_minutes_pending <= 1'b0;
-		atti_evt_rel_seconds_pending <= 1'b0;
-		atti_evt_abs_minutes_pending <= 1'b0;
-		atti_evt_abs_seconds_pending <= 1'b0;
 	end
 	if ((ds_resp_size == 3'h0) &&
 		!ds_a &&
@@ -2910,42 +2649,7 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 		!play_title_pending_rsp) begin
 		if (leadout_title_pending) begin
 			leadout_title_pending <= 1'b0;
-			ds_resp[0] <= 32'h1000 | 8'hAA;
-			atti_report_valid <= 1'b1;
-			atti_last_title <= 8'hAA;
-			atti_last_index <= 8'h01;
-		end else if (atti_evt_drain_active && atti_evt_title_pending) begin
-			atti_evt_title_pending <= 1'b0;
-			ds_resp[0] <= 32'h1000 | atti_cur_title;
-		end else if (atti_evt_drain_active && atti_evt_index_pending) begin
-			atti_evt_index_pending <= 1'b0;
-			ds_resp[0] <= 32'h1100 | atti_cur_index;
-		end else if (atti_evt_drain_active && attirel && atti_evt_rel_minutes_pending) begin
-			atti_evt_rel_minutes_pending <= 1'b0;
-			ds_resp[0] <= 32'h1200 | cur_rminutes[6:0];
-		end else if (atti_evt_drain_active && attirel && atti_evt_rel_seconds_pending) begin
-			atti_evt_rel_seconds_pending <= 1'b0;
-			ds_resp[0] <= 32'h1300 | cur_rseconds[5:0];
-		end else if (atti_evt_drain_active && attiabs && atti_evt_abs_minutes_pending) begin
-			atti_evt_abs_minutes_pending <= 1'b0;
-			ds_resp[0] <= 32'h1400 | cur_aminutes[6:0];
-		end else if (atti_evt_drain_active && attiabs && atti_evt_abs_seconds_pending) begin
-			atti_evt_abs_seconds_pending <= 1'b0;
-			ds_resp[0] <= 32'h1500 | cur_aseconds[5:0];
-		end
-		if (leadout_title_pending ||
-			(atti_evt_drain_active &&
-			(atti_evt_title_pending ||
-			 atti_evt_index_pending ||
-			 (attirel && atti_evt_rel_minutes_pending) ||
-			 (attirel && atti_evt_rel_seconds_pending) ||
-			 (attiabs && atti_evt_abs_minutes_pending) ||
-			 (attiabs && atti_evt_abs_seconds_pending)))) begin
-			butch_reg[0][12] <= 1'b1;
-			butch_reg[0][13] <= 1'b1;
-			ds_resp_idx <= 3'h0;
-			ds_resp_size <= 3'h1;
-			ds_resp_loop <= 7'h0;
+//			ds_resp[0] <= 32'h1000 | 8'hAA;
 		end
 	end
 	if (old_doe_suba && !doe_suba) begin
@@ -2955,6 +2659,47 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 	if (old_doe_dsc && !doe_dsc) begin
 		butch_reg[0][12] <= 1'b0;
 		butch_reg[0][13] <= ((ds_resp_size == 3'h0) || (ds_resp_size == 3'h1)) ? 1'b0 : 1'b1;
+	end
+	if (doe_dsc && (!ewe0l || !ewe2l)) begin
+		butch_reg[0][12] <= 1'b0;
+		butch_reg[0][13] <= 1'b0;
+				play <= 1'b0;
+				stop <= play;
+				stop_flush_ws <= play ? STOP_FLUSH_WS_COUNT : 3'h0;
+				seek <= 8'h0;
+				seek_found_pending <= 1'b0;
+				goto_found_pending_rsp <= 1'b0;
+				ab_found_pending_rsp <= 1'b0;
+				scan_goto_pending <= 1'b0;
+				abplay <= 1'b0;
+				abseek <= 8'h0;
+				clear_dsa_runtime_events();
+				subcode_irq_pending <= 1'b0;
+				frame_irq_pending <= 1'b0;
+				sub_chunk_count <= 8'h0F;
+				subidx <= 4'h0;
+				recrc <= 1'b1;
+				leadout_title_pending <= 1'b0;
+				leadout_seen <= 1'b0;
+				track_idx <= 7'h1;
+				cur_frames <= 7'h0;
+				cur_seconds <= 6'h0;
+				cur_minutes <= 7'h0;
+				cur_rframes <= 7'h0;
+				cur_rseconds <= 6'h0;
+				cur_rminutes <= 7'h0;
+				cur_aframes <= 7'h0;
+				cur_aseconds <= 6'h0;
+				cur_aminutes <= 7'h0;
+				aud_add <= 30'h0;
+				cues_addr <= 7'h1;
+				cuet_addr <= 7'h1;
+				updabs_req <= 1'b0;
+				updabs <= 1'b0;
+				clear_audio_transport();
+				pause <= 1'b0;
+				pause_mode_indicator <= 1'b0;
+				spinpause <= 1'b0;
 	end
 	if (old_doe_sbcntrl && !doe_sbcntrl) begin
 		subcode_irq_pending <= 1'b0;
