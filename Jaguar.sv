@@ -278,7 +278,7 @@ localparam CONF_STR = {
 	// Input Options
 	"P2,Input Options;",
 	"P2-;",
-	"P2O[85],Numstick,On,Off;",
+	"P2O[85],Numstick,Off,On;",
 	"P2O[83],Keyboard As P1,Off,On;",
 	"P2O[86],Swap P1/P2,Off,On;",
 	"P2-;",
@@ -338,6 +338,7 @@ localparam CONF_STR = {
 	"Inf06,",
 	"Inf07,",
 	"Inf08,",
+	"v,2;", // Increment to reset settings to defaults
 	"V,v",`BUILD_DATE
 };
 
@@ -558,6 +559,7 @@ wire        cd_toc_done;
 wire  [9:0] cd_toc_addr;
 wire [15:0] cd_toc_data;
 wire        cd_valid;
+wire        cd_sector2448;
 wire        audbus_busy;
 wire        aud_rd_trig;
 wire        lcnt;
@@ -769,7 +771,7 @@ wire [15:0] aud_16_r;
 
 wire ser_data_in;
 wire ser_data_out;
-assign ser_data_in = USER_IN[0];
+assign ser_data_in = USER_IN[2];
 assign USER_OUT[1] = ser_data_out;
 
 wire m68k_clk;
@@ -891,7 +893,8 @@ jaguar jaguar_inst
 	.aud_ce(aud_ce),
 	.aud_busy(audbus_busy),
 	// aud_sess: menu-driven audio-session override into Butch.
-	.aud_sess(status[55]),
+  .aud_sess(~status[55]),
+	.cdg_in( cdg_in ) ,
 	.force_music_cd(status[55]),
 	.dohacks(patch_checksums),
 	.xvclk_o(xvclk_o),
@@ -900,6 +903,7 @@ jaguar jaguar_inst
 	.errflow (errflow),
 	.unhandled (unhandled),
 	.cd_valid(cd_valid),
+	.cd_sector2448(cd_sector2448),
 	.ntsc( ntsc ) ,
 
 	.ps2_mouse( ps2_mouse ) ,
@@ -926,7 +930,7 @@ reg p1p2pause_active;
 reg old_ps2_stb = 0;
 reg [20:0] keyboard_joystick = 0;
 wire keyboard_joystick_en = status[83];
-wire numstick_en = !status[85];
+wire numstick_en = status[85];
 wire swap_p1p2 = status[86];
 wire [31:0] joystick_p1 = swap_p1p2 ? joystick_1 : joystick_0;
 wire [31:0] joystick_p2 = swap_p1p2 ? joystick_0 : joystick_1;
@@ -1173,6 +1177,7 @@ jaguar_cd_stream cd_stream_inst
 	.cd_toc_addr(cd_toc_addr),
 	.cd_toc_data(cd_toc_data),
 	.cd_valid(cd_valid),
+	.cd_sector2448(cd_sector2448),
 	.audbus_busy(audbus_busy),
 	.xwaitl(xwaitl),
 	.aud_rd_trig(aud_rd_trig),
@@ -1244,6 +1249,7 @@ wire ch1a_ready, ch1b_ready;
 // assign ch1_ready = ch1a_ready || ch1b_ready;
 
 wire [63:0] cart_q1;
+wire [63:0] cdg_in = cd_stream_q;
 wire cart_wrack;// = 1'b1;	// TESTING!!
 assign cart_wrack = sdram_ch2_ready;
 reg cart_diff;
