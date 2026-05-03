@@ -2258,7 +2258,7 @@ hackwait <= (seek_count==4'h1) || (seek_count==4'h4);
 					ds_resp_loop <= (dsa_req_last_track > dsa_req_first_track) ? (dsa_req_last_track - dsa_req_first_track) : 7'h0;
 					dsa_long_toc_session <= dsa_req_session;
 					cues_addr <= dsa_req_first_track;
-					updrespa <= 9'h511;
+					updrespa <= 9'h111;//9'h511;// Had meant to use d511 not h511. TODO: Test with d511 or keep h111=d273
 				end
 			end
 			if (din[15:8]==8'h15) begin  // Set Mode

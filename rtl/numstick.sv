@@ -754,5 +754,6 @@ module numstick
 	assign out_r = in_r;
 	assign out_g = in_g;
 	assign out_b = in_b;
+	assign keypad_press = 'h0;
 `endif
 endmodule
