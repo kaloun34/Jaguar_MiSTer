@@ -116,6 +116,7 @@ module jaguar
 	output              aud_16_eq,
 	input               turbo,
 	input               vintbugfix,
+	input               olpbugfix,
 
 	input               ddreq,
 
@@ -1366,7 +1367,9 @@ _tom tom_inst
 	.startwe         (startwe),
 	.atp             (dram_addrp[10:3]),
 	.vintbugfix      (vintbugfix),
-	.turbo           (turbo)
+	.olpbugfix       (olpbugfix),
+	.turbo           (turbo),
+	.ntsc            (ntsc)
 );
 
 wire audio_clk;
@@ -1548,7 +1551,7 @@ flipflop xbgl_ff
 assign fx68k_clk = turbo ? (ce_26_6_p1 | ce_26_6_p2) : j_xcpuclk;
 assign m68k_clk = fx68k_clk;
 
-//`define ACCURATE_CPU
+`define ACCURATE_CPU
 `ifdef ACCURATE_CPU
 m68kcpu m68k_inst
 (
