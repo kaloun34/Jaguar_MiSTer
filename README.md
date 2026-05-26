@@ -30,6 +30,8 @@ If a game doesn't work try turning on max compatibility, homebrew support or loa
 
 Jaglink over SNAC works. Rx is on User In 2 and Tx is on User Out 1.
 
+Cheat codes work.
+
 Remaining tasks (No guarantees to complete)
 - DSP sometimes does not come up correctly even after reboot (not sure if still occurs)
 - Quality of life improvements
