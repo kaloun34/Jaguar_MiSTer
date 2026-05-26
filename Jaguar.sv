@@ -170,22 +170,6 @@ localparam CONF_STR = {
 	"jp,Y,B,A,Select,Start;",
 	"-;",
 	"I,",
-	"Info1,",
-	"Info2,",
-	"Info3,",
-	"Info4,",
-	"Info5,",
-	"Info6,",
-	"Info7,",
-	"Info8,",
-	"Inf01,",
-	"Inf02,",
-	"Inf03,",
-	"Inf04,",
-	"Inf05,",
-	"Inf06,",
-	"Inf07,",
-	"Inf08,",
 	"v,2;", // Increment to reset settings to defaults
 	"V,v",`BUILD_DATE
 };
