@@ -12,6 +12,8 @@ The CD BIOS must be loaded manually or automatically When using CDs (including V
 
 The Memory Track cart is now supported. The ROM from the cart can be auto-loaded by naming it boot2.rom in the Jagaur folder.
 
+To enable global saves select corresponding files (for the CD eeprom and the memorytrack cart) from the OSD to select where they are saved. Blank eeprom.jce and memorytrack.jcm files are included in the release directory but still must be selected from the OSD at least once.
+
 The controls for player 1 and 2 are now hooked up to MiSTer.
 
 The core is now using SDRAM for cart loading and for main RAM as well as BIOSes and memtrack save data. So SDRAM is *required*.
